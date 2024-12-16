@@ -1,6 +1,6 @@
 [package]
 name = "bitcoin-script-stack"
-description = "Bitcoin script stack tracking tool and deubgger"
+description = "Bitcoin script stack tracking tool and debugger"
 version = "0.0.1"
 edition = "2021"
 authors = ["Martin Jonas <martinjonas@gmail.com>"]
