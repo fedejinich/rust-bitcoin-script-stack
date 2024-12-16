@@ -1,11 +1,10 @@
-use bitcoin::{hashes::Hash, TapLeafHash, Transaction};
+use bitcoin::{hashes::Hash, locktime::absolute, transaction::Version, TapLeafHash, Transaction};
 use bitcoin_scriptexec::{Exec, ExecCtx, Options, Stack, TxTemplate};
 
-pub use bitcoin_script::script;
 pub use bitcoin_script::builder::StructuredScript as Script;
+pub use bitcoin_script::script;
 
 use crate::stack::{StackData, StackTracker, StackVariable};
-
 
 pub struct StepResult {
     pub error: bool,
@@ -17,8 +16,22 @@ pub struct StepResult {
 }
 
 impl StepResult {
-    pub fn new(error:bool, error_msg:String, success:bool, last_opcode:String, stack:Vec<String>, altstack:Vec<String>) -> Self {
-        StepResult { error, error_msg, success, last_opcode, stack, altstack }
+    pub fn new(
+        error: bool,
+        error_msg: String,
+        success: bool,
+        last_opcode: String,
+        stack: Vec<String>,
+        altstack: Vec<String>,
+    ) -> Self {
+        StepResult {
+            error,
+            error_msg,
+            success,
+            last_opcode,
+            stack,
+            altstack,
+        }
     }
 }
 pub fn debug_script(script: bitcoin::ScriptBuf) -> (Exec, String) {
@@ -27,8 +40,8 @@ pub fn debug_script(script: bitcoin::ScriptBuf) -> (Exec, String) {
         Options::default(),
         TxTemplate {
             tx: Transaction {
-                version: bitcoin::transaction::Version::TWO,
-                lock_time: bitcoin::locktime::absolute::LockTime::ZERO,
+                version: Version::TWO,
+                lock_time: absolute::LockTime::ZERO,
                 input: vec![],
                 output: vec![],
             },
@@ -44,7 +57,7 @@ pub fn debug_script(script: bitcoin::ScriptBuf) -> (Exec, String) {
     let mut last_opcode = String::new();
     loop {
         if !exec.remaining_script().is_empty() {
-            let last_opcode_new = exec.remaining_script()[0..1].to_asm_string(); 
+            let last_opcode_new = exec.remaining_script()[0..1].to_asm_string();
             if !last_opcode_new.is_empty() {
                 last_opcode = last_opcode_new;
             }
@@ -54,25 +67,27 @@ pub fn debug_script(script: bitcoin::ScriptBuf) -> (Exec, String) {
         }
     }
     (exec, last_opcode)
-
 }
-
 
 pub fn convert_stack(stack: &Stack) -> Vec<String> {
-    let converted = (0..stack.len()).map(|f| stack.get(f))
-        .map(|v| { if v.is_empty() { vec![0] } else { v.clone()} }).collect::<Vec<Vec<u8>>>();
+    let converted = (0..stack.len())
+        .map(|f| stack.get(f))
+        .map(|v| if v.is_empty() { vec![0] } else { v.clone() })
+        .collect::<Vec<Vec<u8>>>();
 
-    let hex_strings: Vec<String> = converted.into_iter().map(|sub_vec| {
-        sub_vec.iter()
-               .map(|byte| format!("{:x}", byte)) // Convert each byte to a hex string
-               .collect::<Vec<String>>()            // Collect all hex strings into a vector
-               .join("")                            // Join all elements of the vector into a single string
-    }).collect();
+    let hex_strings: Vec<String> = converted
+        .into_iter()
+        .map(|sub_vec| {
+            sub_vec
+                .iter()
+                .map(|byte| format!("{:x}", byte)) // Convert each byte to a hex string
+                .collect::<Vec<String>>() // Collect all hex strings into a vector
+                .join("") // Join all elements of the vector into a single string
+        })
+        .collect();
 
     hex_strings
-
 }
-
 
 pub fn print_execute_step(stack: &StackTracker, step_number: usize) {
     let ex = execute_step(stack, step_number);
@@ -95,7 +110,6 @@ pub fn print_execute_step(stack: &StackTracker, step_number: usize) {
 }
 
 pub fn execute_step(stack: &StackTracker, step_number: usize) -> StepResult {
-
     let script = script! {
         for s in stack.script.iter().take(step_number+1) {
             { s.clone() }
@@ -109,7 +123,8 @@ pub fn execute_step(stack: &StackTracker, step_number: usize) -> StepResult {
 
     let with_error = result.result().as_ref().unwrap().error.is_some();
     let error = format!("{:?}", result.result().as_ref().unwrap().error);
-    let success = step_number == stack.script.len() - 1 && result.result().as_ref().unwrap().success;
+    let success =
+        step_number == stack.script.len() - 1 && result.result().as_ref().unwrap().success;
 
     let converted = convert_stack(result.stack());
     let stack = show_stacks(&step_data, &step_data.stack, converted, false);
@@ -118,11 +133,15 @@ pub fn execute_step(stack: &StackTracker, step_number: usize) -> StepResult {
     let altstack = show_stacks(&step_data, &step_data.altstack, converted, true);
 
     StepResult::new(with_error, error, success, last, stack, altstack)
-
 }
 
-pub fn show_stacks(data: &StackData, stack: &[StackVariable], mut real: Vec<String>, reverse: bool) -> Vec<String> {
-    let iter : Box<dyn Iterator<Item=&StackVariable>> = if reverse {
+pub fn show_stacks(
+    data: &StackData,
+    stack: &[StackVariable],
+    mut real: Vec<String>,
+    reverse: bool,
+) -> Vec<String> {
+    let iter: Box<dyn Iterator<Item = &StackVariable>> = if reverse {
         Box::new(stack.iter().rev())
     } else {
         Box::new(stack.iter())
@@ -133,7 +152,14 @@ pub fn show_stacks(data: &StackData, stack: &[StackVariable], mut real: Vec<Stri
 
     let mut ret = Vec::new();
     for var in iter {
-        let data_item = format!("id: {:<width$} | size: {:<width$} | name: {:<width_name$} | ", var.id(), var.size(), data.names.get(&var.id()).unwrap_or(&"unknown".to_string()), width=7, width_name=20 );
+        let data_item = format!(
+            "id: {:<width$} | size: {:<width$} | name: {:<width_name$} | ",
+            var.id(),
+            var.size(),
+            data.names.get(&var.id()).unwrap_or(&"unknown".to_string()),
+            width = 7,
+            width_name = 20
+        );
         let mut real_sub = String::new();
         if !real.is_empty() && real.len() >= var.size() as usize {
             real_sub = real.iter().take(var.size() as usize).cloned().collect();
@@ -142,16 +168,16 @@ pub fn show_stacks(data: &StackData, stack: &[StackVariable], mut real: Vec<Stri
         ret.push(format!("{} {}", data_item, real_sub).to_string());
     }
     ret
-} 
+}
 
-pub fn show_stack(data: &StackData, real: Vec<String> ) {
+pub fn show_stack(data: &StackData, real: Vec<String>) {
     println!("======= STACK: ======");
     for s in show_stacks(data, &data.stack, real, false) {
         println!("{}", s);
     }
 }
 
-pub fn show_altstack(data: &StackData, real: Vec<String> ) {
+pub fn show_altstack(data: &StackData, real: Vec<String>) {
     println!("==== ALT-STACK: ====");
     for s in show_stacks(data, &data.altstack, real, true) {
         println!("{}", s);
